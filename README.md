@@ -1,3 +1,8 @@
+CrISA-X: Unleashing Performance Excellence in
+Lightweight Symmetric Cryptography for
+Extendable and Deeply Embedded Processors
+
+
 The efficient execution of a Lightweight Cryptography (LWC) algorithm is essential for
 edge computing platforms. Dedicated Instruction Set Extensions (ISEs) are often included
 for this purpose. We propose the CrISA-X-a Cryptography Instruction Set Architecture
