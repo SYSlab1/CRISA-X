@@ -1,0 +1,264 @@
+
+immediate_range IR32 0 31 1
+immediate_range IR4 0 3 1  //use for Eliphant
+immediate_range IR16 0 15 1  //use for Photon
+
+
+
+format flix_1 64 {flix64_slot0, flix64_slot1}
+format flix_2 64 {flix64_slot2}
+format flix_3 64 {flix64_slot3,flix64_slot4}
+
+						     
+
+// load store
+slot_opcodes flix64_slot0 {xt_loadstore}
+slot_opcodes flix64_slot1 {xt_loadstore}
+
+
+// Standard instructions in slot0 & 1
+slot_opcodes flix64_slot0 {xt_move,xt_alu}
+slot_opcodes flix64_slot1 {xt_move,xt_alu}
+slot_opcodes flix64_slot0 {ROTXOR}
+slot_opcodes flix64_slot1 {ROTXOR}
+
+///  flix64_slot2  (single instruction)
+slot_opcodes flix64_slot2 {XORROTimd} //ascon
+slot_opcodes flix64_slot2 {XOR2} //ascon
+slot_opcodes flix64_slot2 {XORNOTAND}//ascon  
+slot_opcodes flix64_slot2 {XOR2imd}//ascon  
+
+slot_opcodes flix64_slot2 {ROTXOR} //eliphant
+slot_opcodes flix64_slot2 {ROTOR}  //eliphant
+slot_opcodes flix64_slot2 {XOR5}   //eliphant
+slot_opcodes flix64_slot2 {XOR5m}   //eliphant
+
+slot_opcodes flix64_slot2 {SHIFTLXOR}//Grain
+
+slot_opcodes flix64_slot2 {OR4}//GIFT
+slot_opcodes flix64_slot2 {XOROR}//GIFT
+slot_opcodes flix64_slot2 {XORAND}//GIFT
+slot_opcodes flix64_slot2 {ROTOR}//GIFT
+slot_opcodes flix64_slot2 {XORROTimdgift}//GIFT
+
+
+slot_opcodes flix64_slot2 {SHIFTRXOR}//Photon
+slot_opcodes flix64_slot2 {XORAND2}//Photon
+slot_opcodes flix64_slot2 {XORNOT}//Photon
+slot_opcodes flix64_slot2 {XOROR2}//Photon
+ 
+slot_opcodes flix64_slot2 {SHIFTRXORAND}
+ 
+slot_opcodes flix64_slot2 {XORSHFTAND}//Romulusn
+slot_opcodes flix64_slot2 {XORNOTOR}//Romulusn
+slot_opcodes flix64_slot2 {XORROTOR}//Romulusn
+//Spark    ROTXOR  XOR2
+
+slot_opcodes flix64_slot2 {ROTORimd}//Tinyjambu
+
+
+slot_opcodes flix64_slot2 {ROTXOR2}//xoodyak
+slot_opcodes flix64_slot2 {SHIFTLOR}//xoodyak
+ 
+
+
+//ascon   {3 instruction, {XOR2,XORROTimd} , XORNOTAND , XOR2imd
+slot_opcodes flix64_slot3{XOR2,XORROTimd,XORNOTAND,XOR2imd,xt_move,xt_alu}
+slot_opcodes flix64_slot4{XOR2,XORROTimd,XORNOTAND,XOR2imd,xt_move,xt_alu}
+//eliphant   {3 instruction, {ROTXOR,ROTOR} , XORNOTAND , {XOR5,XOR5m}
+slot_opcodes flix64_slot3{ROTXOR,ROTOR,XOR5,XOR5m,XORNOTAND,xt_move,xt_alu}
+slot_opcodes flix64_slot4{ROTXOR,ROTOR,XOR5,XOR5m,XORNOTAND,xt_move,xt_alu}
+//GIFT       {3 instruction, {ROTOR} , ORSFTRL ,  OR4 , {XORAND,XOROR}
+slot_opcodes flix64_slot3{XORAND,XOROR,XOR2,xt_move,xt_alu}
+slot_opcodes flix64_slot4{XORAND,XOROR,XOR2,xt_move,xt_alu}
+
+//Grain        {2 instruction, SHIFTLXOR   XORAND
+slot_opcodes flix64_slot3{SHIFTLXOR,XORAND,xt_move,xt_alu}
+slot_opcodes flix64_slot4{SHIFTLXOR,XORAND,xt_move,xt_alu}
+//Photon
+slot_opcodes flix64_slot3{SHIFTRXORAND,ROTOR,SHIFTRXOR,XOR5,XORAND,XOR2,XORAND2,XORNOT,XOROR2,xt_move,xt_alu}
+slot_opcodes flix64_slot4{SHIFTRXORAND,ROTOR,SHIFTRXOR,XOR5,XORAND,XOR2,XORAND2,XORNOT,XOROR2,xt_move,xt_alu}
+slot_opcodes flix64_slot1{SHIFTRXORAND,ROTOR,SHIFTRXOR,XOR5,XORAND,XOR2,XORAND2,XORNOT,XOROR2,xt_move,xt_alu}
+ //Grain
+slot_opcodes flix64_slot3{XOR2,XORSHFTAND,XORNOTOR,xt_move,xt_alu}
+slot_opcodes flix64_slot4{XOR2,XORSHFTAND,XORNOTOR,xt_move,xt_alu}
+
+//Romulusn
+ slot_opcodes flix64_slot3{XORSHFTAND,XORNOTOR,XORROTOR,xt_move,xt_alu}
+slot_opcodes flix64_slot4{XORSHFTAND,XORNOTOR,XORROTOR,xt_move,xt_alu}
+
+//TinyJAMBU
+slot_opcodes flix64_slot0{ROTORimd}
+slot_opcodes flix64_slot1{ROTORimd}
+slot_opcodes flix64_slot3{NotAnd,XOR5,ROTORimd,xt_move,xt_alu}
+slot_opcodes flix64_slot4{NotAnd,XOR5,ROTORimd,xt_move,xt_alu}
+
+//xoodyak
+slot_opcodes flix64_slot0{ROTXOR2,SHIFTLOR}
+slot_opcodes flix64_slot1{ROTXOR2,SHIFTLOR}
+slot_opcodes flix64_slot3{SHIFTLOR,XOR5,ROTXOR2,xt_move,xt_alu}
+slot_opcodes flix64_slot4{SHIFTLOR,XOR5,ROTXOR2,xt_move,xt_alu}
+
+
+////==================================================////
+//ascon
+operation XORROTimd {out AR a,in AR b,in AR c ,  in IR32 imd1,  in IR32 imd2} {} {
+
+	wire [31:0] tmp_right = c>>imd1[4:0];
+ 	wire [31:0] tmp_left =  c<<imd2[4:0];
+ 	
+	assign a = b ^ ((tmp_right) | (tmp_left));	
+}
+//ascon , Eliphant , 
+operation XORNOTAND {out AR a,in AR b,in AR c ,in AR d} {} {
+	assign a = b ^ ((~c) & d) ;	
+}
+//ascon  Photon
+operation XOR2 {out AR res1,in AR a,in AR b,out AR res2,in AR c ,in AR d} {} {
+	assign res1 = a ^b;	
+	assign res2 = c ^d;
+}
+//ascon
+operation XOR2imd {inout AR a, in IR32 imd1,inout AR b ,in IR32 imd2} {} {
+	assign a = a ^imd1[4:0];	
+	assign b = b ^imd2[4:0];
+}
+//Eliphant  (pre was func5)
+operation XOR5 {out AR res,in AR a, in AR b, in AR c, in AR d, in AR e} {} {	
+		assign res =   (a^b^c^d^e); //bit-wise NOR
+ }
+ //Eliphant
+operation XOR5m {in AR p1,inout AR a, inout AR b, inout AR c, inout AR d, inout AR e} {} {	
+
+ 					assign a = a ^ p1;
+					assign b = b ^ p1;
+					assign c = c ^ p1;
+					assign d = d ^ p1;
+					assign e = e ^ p1;		
+ }
+ //Eliphant 8bit	 
+ operation ROTXOR{out AR result,in AR x, in AR a, in AR b, in AR imd1, in AR imd2} {} {
+    
+    	wire [7:0] tmp_right =  (a>>imd2[4:0]);    	
+    	wire [7:0] tmp_left  =  (b<<imd1[4:0]);
+	    assign result =  x ^tmp_right^tmp_left;
+}
+
+//GIFT-COFB  
+operation XORROTimdgift{out AR res,in AR input ,in IR16 imd1,in IR16 imd2,in AR mask } {} {
+	 wire [31:0] tmp =mask[15:0];
+
+ 	 
+	 wire  [31:0] andleft  ={tmp[31:0],tmp[31:0]};
+	 wire  [31:0] andright ={mask,mask};
+	
+	wire [31:0] tmp_right = input>>imd1[4:0];
+ 	wire [31:0] tmp_left =  input<<imd2[4:0];
+ 	
+	assign res = ((tmp_right)&andright | (tmp_left)&andleft);
+} 
+
+//romlusn
+operation XORROTOR{out AR result,in AR x, in AR a, in AR b, in IR32 imd1, in IR32 imd2} {} {
+  
+    	wire [31:0] tmp_right =  (a>>imd2[4:0]);    	
+    	wire [31:0] tmp_left  =  (b<<imd1[4:0]);
+	    assign result =  x ^(tmp_right|tmp_left);
+}
+//GIFT-COFB
+operation OR4 {out AR res,in AR a, in AR b, in AR c, in AR d} {} {	
+		assign res =  (a|b|c|d); 
+ }
+operation XORAND {inout AR result, in AR a, in AR b} {} {
+	assign result =  result^a&b; 
+}
+//GIFT-COFB
+operation ORSFTRL {inout AR a,in AR b,in AR c,in AR d} {} {
+	assign a =  a | ((b>>c)&32'h1) <<(b+d) ;
+}
+//GIFT-COFB , Tinyjambu , romuluns
+ operation ROTOR {out AR result, in AR a, in AR b, in IR32 imd1, in IR32 imd2} {} {
+	assign result =  (a>>imd1[4:0]) | (b<<imd2[4:0] );
+}
+
+
+//GIFT-COFB , Tinyjambu 
+operation XOROR {inout AR result, in AR a, in AR b} {} {
+	assign result =  result^a|b; 
+}
+
+//Grain , Photon ight version
+ operation SHIFTLXOR {out AR result, in AR a, in AR b, in IR32 imd1} {} {
+	assign result =  (a<<imd1[2:0])^b;
+}
+ 
+//Photon
+operation XORAND2 {inout AR a,in AR b,inout AR c ,in AR d} {} {
+	assign a = a ^b;	
+	assign c = c & d;
+}
+ 
+//Photon Grain - Left version
+ operation SHIFTRXOR {out AR result, in AR a, in AR b, in IR16 imd1} {} {
+	assign result = b^ (a>>imd1[2:0]);
+}
+
+ //Photon Grain - Left version
+ operation SHIFTRXORAND {out AR result, in AR a, in AR b, in AR c, in IR32 imd1} {} {
+	assign result = b^ (a>>imd1[2:0])&c;
+}
+ 
+//Photon
+operation XOROR2 {inout AR a,in AR b,inout AR c ,in AR d} {} {
+	assign a = a ^b;	
+	assign c = c | d;
+}
+ //Photon
+operation XORNOT {inout AR a,in AR b} {} {
+	assign a = ~(a ^b);	
+	}
+
+ //romulusn
+operation XORNOTOR {inout AR a,in AR b,in AR c} {} {
+	assign a = a ^ (~(a | c));	
+	}
+
+ //romulusn  ,XORSHFTAND--> SWAPMOVE
+operation XORSHFTAND {inout AR a,inout AR b,in AR mask,in AR n} {} {
+	wire [31:0] tmp = (b ^ (a >> n)) & mask;
+	assign b = b^ tmp;						
+	assign a = a ^ (tmp << n);				
+	}
+
+ //romulusn  ,XORSHFTAND--> SWAPMOVE
+operation SWAPMOVEt{inout AR a,inout AR b,in AR mask,in AR n} {} {
+	wire [31:0] tmp = (b ^ (a >> n)) & mask;
+	assign b = b^ tmp;						
+	assign a = a ^ (tmp << n);				
+	}
+
+
+//Tinyjambu
+operation NotAnd {out AR result, in AR a, in AR b} {} {
+	assign result =  ~(a&b); 
+}
+
+//GIFT-COFB , Tinyjambu , romuluns
+ operation ROTORimd {out AR result, in AR a, in AR b, in IR32 imd1, in IR32 imd2} {} {
+	assign result =  (a>>imd1[4:0]) | (b<<imd2[4:0] );
+}
+
+//xoodyak
+operation ROTXOR2 {out AR result, in AR a, in AR b, in IR32 imd1, in IR32 imd2} {} {
+	assign result =  ( (a>>(32-imd1)) ^ (a<<imd1 ) ) ^
+					 ( (b>>(32-imd2)) ^ (b<<imd2 ) ) ;
+}
+
+////xoodyak
+ operation SHIFTLOR {out AR result, in AR a, in AR b, in IR32 imd1} {} {
+	assign result =  a | (b<<imd1[2:0]);
+}
+  
+
+ 
+ 

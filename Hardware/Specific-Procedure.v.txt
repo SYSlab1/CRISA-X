@@ -1,0 +1,539 @@
+immediate_range IR32 0 31 1
+
+state x4e_out 32 add_read_write
+state x4o_out 32 add_read_write
+
+
+format flix_1 64 {flix64_slot0, flix64_slot1}
+format flix_2 64 {flix64_slot2}
+
+slot_opcodes flix64_slot0 {xt_loadstore}
+slot_opcodes flix64_slot1 {xt_loadstore}
+slot_opcodes flix64_slot0 {xt_move,xt_alu}
+slot_opcodes flix64_slot1 {xt_move,xt_alu}
+
+slot_opcodes flix64_slot2 {ASCORTprm}
+slot_opcodes flix64_slot2 {Kecccakprm}
+slot_opcodes flix64_slot2 {Giftprm}
+
+//Elephant KeccakRhoOffsets
+table KO 3 25 {
+    0, 1, 6, 4, 3,
+	4, 4, 6, 7, 4,
+	3, 2, 3, 1, 7,
+	1, 5, 7, 5, 0,
+	2, 2, 5, 0, 6
+
+}
+//Elephant  KeccakRoundConstants
+table KC  8 18 {
+    8'h1, 8'h82, 8'h8a, 8'h00, 8'h8b, 8'h01, 8'h81, 8'h09, 8'h8a,
+    8'h88, 8'h09, 8'h0a, 8'h8b, 8'h8b, 8'h89, 8'h03, 8'h02, 8'h80
+}
+
+//GIFT
+table GIFT_RC 8 40 {
+    8'h01, 8'h03, 8'h07, 8'h0F, 8'h1F, 8'h3E, 8'h3D, 8'h3B, 8'h37, 8'h2F,
+    8'h1E, 8'h3C, 8'h39, 8'h33, 8'h27, 8'h0E, 8'h1D, 8'h3A, 8'h35, 8'h2B,
+    8'h16, 8'h2C, 8'h18, 8'h30, 8'h21, 8'h02, 8'h05, 8'h0B, 8'h17, 8'h2E,
+    8'h1C, 8'h38, 8'h31, 8'h23, 8'h06, 8'h0D, 8'h1B, 8'h36, 8'h2D, 8'h1A
+}
+	
+//###########################################################
+
+function [4:0] rol8 ([4:0] a, [4:0] offset) {
+
+	wire [4:0] shftamount = 8-offset[2:0];
+    wire [4:0] tmp_right = (a>>shftamount);
+ 	wire [4:0] tmp_left =  (a<<offset[4:0]);
+	assign rol8 =  tmp_right ^ tmp_left;
+}
+
+
+function [7:0] rol_rho ([7:0] a, [2:0] offset) {
+
+	wire [4:0] shftamount = 8-offset[2:0];
+    wire [4:0] tmp_right = (a>>shftamount);
+ 	wire [4:0] tmp_left =  (a<<offset[2:0]);
+	assign rol_rho =  tmp_left ^ tmp_right ;
+}
+//Gift
+function [31:0] rowperm ([31:0] S_in,[1:0] B0_pos,[1:0] B1_pos,[1:0] B2_pos,[1:0] B3_pos){
+;for ( $i = 0 ; $i < 8 ; $i++){
+	
+		wire [31:0] T`$i`;
+		wire [31:0] Temp0`$i`;
+		wire [31:0] Temp1`$i`;
+		wire [31:0] Temp2`$i`;
+		wire [31:0] Temp3`$i`;
+		wire [4:0] s_right0`$i`=(4*`$i`+0);
+		wire [4:0] s_right1`$i`=(4*`$i`+1);
+		wire [4:0] s_right2`$i`=(4*`$i`+2);
+		wire [4:0] s_right3`$i`=(4*`$i`+3);
+		
+
+		assign Temp0`$i`  = (S_in>>(s_right0`$i`)&32'd1)<<(`$i`+8*B0_pos);
+		assign Temp1`$i`  = (S_in>>(s_right1`$i`)&32'd1)<<(`$i`+8*B1_pos);		
+		assign Temp2`$i`  = (S_in>>(s_right2`$i`)&32'd1)<<(`$i`+8*B2_pos);		
+		assign Temp3`$i`  = (S_in>>(s_right3`$i`)&32'd1)<<(`$i`+8*B3_pos);		
+
+		assign T`$i` = Temp0`$i`| Temp1`$i` |Temp2`$i`|Temp3`$i`;
+		
+;}
+		assign rowperm =T0|T1|T2|T3|T4|T5|T6|T7;
+}
+
+	 
+////==================================================////
+//ascon
+operation ASCORTprm{
+inout AR x0e,inout AR x0o,
+inout AR x1e,inout AR x1o,
+inout AR x2e,inout AR x2o,
+inout AR x3e,inout AR x3o,
+in AR x4e,in AR x4o
+ } {out x4e_out,out x4o_out} {
+ //} {} {
+	
+    wire [31:0] x0e_t=  x0e ^ x4e; 
+    wire [31:0] x0o_t = x0o ^ x4o;
+    wire [31:0] x4e_t = x4e^ x3e;
+    wire [31:0] x4o_t = x4o^ x3o;
+    wire [31:0] x2e_t = x2e^ x1e;
+    wire [31:0] x2o_t = x2o^ x1o;
+    
+    //wire [31:0] t0e =  x0e;
+    //wire [31:0] t0o =  x0o;
+   // wire [31:0] t4e =  x4e;
+   // wire [31:0] t4o =  x4o;
+    wire [31:0] x3e_t =  x3e;
+    wire [31:0] x3o_t =  x3o;
+     
+    wire [31:0] x1e_t =  x1e;
+    wire [31:0] x1o_t =  x1o; 
+   // wire [31:0] t2e =  x2e;
+    //wire [31:0] t2o =  x2o; 
+
+
+
+    wire [31:0] x0e_tt = x0e_t ^ (~x1e_t & x2e_t);
+    wire [31:0] x0o_tt = x0o_t ^ (~x1o_t & x2o_t); 
+    
+    wire [31:0] x2e_tt = x2e_t ^ (~x3e_t & x4e_t);
+    wire [31:0] x2o_tt = x2o_t ^ (~x3o_t & x4o_t);
+     
+    wire [31:0] x4e_tt = x4e_t ^ (~x0e_t & x1e_t); 
+    wire [31:0] x4o_tt = x4o_t ^ (~x0o_t & x1o_t);
+     
+    wire [31:0] x1e_tt = x1e_t ^ (~x2e_t & x3e_t); 
+    wire [31:0] x1o_tt = x1o_t ^ (~x2o_t & x3o_t);
+     
+    wire [31:0] x3e_tt = x3e_t ^ (~x4e_t & x0e_t);
+    wire [31:0] x3o_tt = x3o_t ^ (~x4o_t & x0o_t); 
+    
+    wire [31:0] x1e_ttt =x1e_tt ^ x0e_tt; 
+    wire [31:0] x1o_ttt =x1o_tt ^ x0o_tt; 
+    wire [31:0] x3e_ttt =x3e_tt ^ x2e_tt; 
+    wire [31:0] x3o_ttt =x3o_tt ^ x2o_tt; 
+    wire [31:0] x0e_ttt =x0e_tt ^ x4e_tt; 
+    wire [31:0] x0o_ttt =x0o_tt ^ x4o_tt; 
+    
+    
+    wire [31:0] x2e_ttt =x2e_tt; 
+    wire [31:0] x2o_ttt =x2o_tt; 
+    wire [31:0] x4e_ttt =x4e_tt; 
+    wire [31:0] x4o_ttt =x4o_tt; 
+    
+    
+    
+ 
+     wire [31:0] x0e_tttt  = x0e_ttt ^ rot(x0o_ttt, 4);
+     wire [31:0] x0o_tttt  = x0o_ttt ^ rot(x0e_ttt, 5); 
+     wire [31:0] x1e_tttt  = x1e_ttt ^ rot(x1e_ttt, 11);
+     wire [31:0] x1o_tttt  = x1o_ttt ^ rot(x1o_ttt, 11); 
+     wire [31:0] x2e_tttt  = x2e_ttt ^ rot(x2o_ttt, 2); 
+     wire [31:0] x2o_tttt  = x2o_ttt ^ rot(x2e_ttt, 3); 
+     wire [31:0] x3e_tttt  = x3e_ttt ^ rot(x3o_ttt, 3);  
+     wire [31:0] x3o_tttt  = x3o_ttt ^ rot(x3e_ttt, 4); 
+     wire [31:0] x4e_tttt  = x4e_ttt ^ rot(x4e_ttt, 17);
+     wire [31:0] x4o_tttt  = x4o_ttt ^ rot(x4o_ttt, 17); 
+     
+     
+     assign x0e =x0e_tttt ^ rot(x0o_tttt, 9);  
+     assign x0o =x0o_tttt ^ rot(x0e_tttt, 10); 
+     
+     assign x1e =x1e_tttt ^ rot(x1o_tttt, 19);
+     assign x1o =x1o_tttt ^ rot(x1e_tttt, 20); 
+     
+     assign x2e =~(x2e_tttt ^ x2o_tttt);  
+     assign x2o =~(x2o_tttt ^ rot(x2e_tttt, 1));
+      
+     assign x3e =x3e_tttt ^ rot(x3e_tttt, 5); 
+     assign x3o =x3o_tttt  ^ rot(x3o_tttt, 5); 
+     
+     assign x4e_out =x4e_tttt ^ rot(x4o_tttt, 3); 
+     assign x4o_out =x4o_tttt ^ rot(x4e_tttt, 4); 
+ 
+   
+	}
+
+	
+function [31:0] rot([31:0] x, [4:0] b) {
+ 	
+
+ 	wire [31:0] tmp_right = x>>b[4:0];
+ 	wire [4:0] shifamount = 32-b[4:0];
+ 	wire [31:0] tmp_left =  x<<(shifamount);
+ 	
+  	assign rot = tmp_right| tmp_left;
+ 	
+}
+ 
+//ascon
+operation XORimd4 {inout AR a, in IR32 imd1,inout AR b ,in IR32 imd2} {} {
+	assign a = a ^imd1[4:0];	
+	assign b = b ^imd2[4:0];
+}
+
+//Elephant Kecccak
+operation Kecccakprm{
+
+//A0 : a0 a1 a2 a3//
+   			     inout AR A0,
+//A1 : a4 a5 a6 a7//   			     
+			     inout AR A1,
+//A2 : a8 a9 a10 a11//			     
+			     inout AR A2,
+//A3 : a12 a13 a14 a15//			     
+			     inout AR A3,
+//A4 : a16 a17 a18 a19////			     
+			     inout AR A4,
+//A5 : a20 a21 a22 a23// //			     
+				 inout AR A5,
+//A6 : a24       
+				 inout AR A6,
+				 in AR roundnum } {} {				 
+    wire [7:0] a0 = A0;
+ 	wire [7:0] a1 =(A0>>8'd8);
+ 	wire [7:0] a2 =(A0>>8'd16);
+ 	wire [7:0] a3 =(A0>>8'd24);
+ 	wire [7:0] a4 =A1;
+ 	wire [7:0] a5 =(A1>>8'd8);
+ 	wire [7:0] a6 =(A1>>8'd16);
+ 	wire [7:0] a7 =(A1>>8'd24);
+ 	wire [7:0] a8 =A2;
+ 	wire [7:0] a9 =(A2>>8'd8);
+ 	wire [7:0] a10 =(A2>>8'd16);
+ 	wire [7:0] a11 = (A2>>8'd24);
+ 	wire [7:0] a12 =A3;
+ 	wire [7:0] a13 =(A3>>8'd8);
+ 	wire [7:0] a14 =(A3>>8'd16);
+ 	wire [7:0] a15 =(A3>>8'd24);
+ 	wire [7:0] a16 =(A4);
+ 	wire [7:0] a17 =(A4>>8'd8);
+ 	wire [7:0] a18 =(A4>>8'd16);
+ 	wire [7:0] a19 =(A4>>8'd24);
+ 	wire [7:0] a20 =(A5);
+ 	wire [7:0] a21 =(A5>>8'd8);
+ 	wire [7:0] a22 =(A5>>8'd16);
+ 	wire [7:0] a23 =(A5>>8'd24); 
+ 	wire [7:0] a24 =(A6); 
+ 	
+ 	
+ //	TIEprint((1),"start value");          
+ //   TIEprint((1), "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\n",
+ //   a0,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11,a12,a13,a14,a15,a16,a17,a18,a19,a20,a21,a22,a23,a24);
+ 
+ 
+ //theta	 	 			   
+ 	wire [7:0] c0 =a0^a5^a10^a15^a20;
+ 	wire [7:0] c1 =a1^a6^a11^a16^a21;
+ 	wire [7:0] c2 =a2^a7^a12^a17^a22;
+ 	wire [7:0] c3 =a3^a8^a13^a18^a23;
+ 	wire [7:0] c4 =a4^a9^a14^a19^a24;
+
+ 	wire [4:0] d0 =rol8(c1,1) ^ c4;
+ 	wire [4:0] d1 =rol8(c2,1) ^ c0;
+ 	wire [4:0] d2 =rol8(c3,1) ^ c1;
+ 	wire [4:0] d3 =rol8(c4,1) ^ c2;
+ 	wire [4:0] d4 =rol8(c0,1) ^ c3;
+ 	
+ 	
+ 	wire [7:0] temp_a0 = a0^d0; 
+ 	wire [7:0] temp_a1 = a1^d1;
+ 	wire [7:0] temp_a2 = a2^d2;
+ 	wire [7:0] temp_a3 = a3^d3;
+ 	wire [7:0] temp_a4 = a4^d4;
+ 	wire [7:0] temp_a5 = a5^d0; 
+ 	wire [7:0] temp_a6 = a6^d1; 
+ 	wire [7:0] temp_a7 = a7^d2; 
+ 	wire [7:0] temp_a8 = a8^d3; 
+ 	wire [7:0] temp_a9 = a9^d4; 
+ 	wire [7:0] temp_a10 =a10^d0;
+ 	wire [7:0] temp_a11 =a11^d1;
+ 	wire [7:0] temp_a12 =a12^d2;
+ 	wire [7:0] temp_a13 =a13^d3;
+ 	wire [7:0] temp_a14 =a14^d4;
+ 	wire [7:0] temp_a15 =a15^d0;
+ 	wire [7:0] temp_a16 =a16^d1;
+ 	wire [7:0] temp_a17 =a17^d2;
+ 	wire [7:0] temp_a18 =a18^d3;
+ 	wire [7:0] temp_a19 =a19^d4;
+ 	wire [7:0] temp_a20 =a20^d0;
+ 	wire [7:0] temp_a21 =a21^d1;
+ 	wire [7:0] temp_a22 =a22^d2;
+ 	wire [7:0] temp_a23 =a23^d3;
+ 	wire [7:0] temp_a24 =a24^d4;
+ 	
+ 	
+ 	//TIEprint((1),"Theta");          
+    //TIEprint((1), "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\n",
+    //temp_a0,temp_a1,temp_a2,temp_a3,temp_a4,temp_a5,temp_a6,temp_a7,temp_a8,temp_a9,temp_a10,temp_a11,temp_a12,temp_a13,temp_a14,temp_a15,temp_a16,temp_a17,temp_a18,temp_a19,temp_a20,temp_a21,temp_a22,temp_a23,temp_a24);
+
+//rho
+	
+	wire [7:0]  temp2_a0 = rol_rho(temp_a0,KO[0]);
+ 	wire [7:0]  temp2_a1 = rol_rho(temp_a1,KO[1]);
+ 	wire [7:0]  temp2_a2 = rol_rho(temp_a2,KO[2]);
+ 	wire [7:0]  temp2_a3 = rol_rho(temp_a3,KO[3]);
+ 	wire [7:0]  temp2_a4 = rol_rho(temp_a4,KO[4]);
+ 	wire [7:0]  temp2_a5 = rol_rho(temp_a5,KO[5]);
+ 	wire [7:0]  temp2_a6 = rol_rho(temp_a6,KO[6]);
+ 	wire [7:0]  temp2_a7 = rol_rho(temp_a7,KO[7]);
+ 	wire [7:0]  temp2_a8 = rol_rho(temp_a8,KO[8]);
+ 	wire [7:0]  temp2_a9 = rol_rho(temp_a9,KO[9]);
+ 	wire [7:0]  temp2_a10 =rol_rho(temp_a10,KO[10]);
+ 	wire [7:0]  temp2_a11 =rol_rho(temp_a11,KO[11]);
+ 	wire [7:0]  temp2_a12 =rol_rho(temp_a12,KO[12]);
+ 	wire [7:0]  temp2_a13 =rol_rho(temp_a13,KO[13]);
+ 	wire [7:0]  temp2_a14 =rol_rho(temp_a14,KO[14]);
+ 	wire [7:0]  temp2_a15 =rol_rho(temp_a15,KO[15]);
+ 	wire [7:0]  temp2_a16 =rol_rho(temp_a16,KO[16]);
+ 	wire [7:0]  temp2_a17 =rol_rho(temp_a17,KO[17]);
+ 	wire [7:0]  temp2_a18 =rol_rho(temp_a18,KO[18]);
+ 	wire [7:0]  temp2_a19 =rol_rho(temp_a19,KO[19]);
+ 	wire [7:0]  temp2_a20 =rol_rho(temp_a20,KO[20]);
+ 	wire [7:0]  temp2_a21 =rol_rho(temp_a21,KO[21]);
+ 	wire [7:0]  temp2_a22 =rol_rho(temp_a22,KO[22]);
+ 	wire [7:0]  temp2_a23 =rol_rho(temp_a23,KO[23]);
+ 	wire [7:0]  temp2_a24 =rol_rho(temp_a24,KO[24]);	
+ 
+ //TIEprint((1),"rho: ");          
+ //   TIEprint((1), "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\n",
+ //      temp2_a0,temp2_a1,temp2_a2,temp2_a3,temp2_a4,temp2_a5,temp2_a6,temp2_a7,temp2_a8,temp2_a9,temp2_a10,temp2_a11,temp2_a12,temp2_a13,temp2_a14,temp2_a15,temp2_a16,temp2_a17,temp2_a18,temp2_a19,temp2_a20,temp2_a21,temp2_a22,temp2_a23,temp2_a24);
+ 
+//pi
+
+//(0 <--- 0)(16 <--- 5)(7 <--- 10)(23 <--- 15)(14 <--- 20)(10 <--- 1)(1 <--- 6)(17 <--- 11)
+//(8 <--- 16)(24 <--- 21)(20 <--- 2)(11 <--- 7)(2 <--- 12)(18 <--- 17)(9 <--- 22)(5 <--- 3)
+//(21 <--- 8)(12 <--- 13)(3 <--- 18)(19 <--- 23)(15 <--- 4)(6 <--- 9)(22 <--- 14)(13 <--- 19)
+//(4 <--- 24)
+/*
+temp2	a0	>>>>>>	a0//
+temp2	a1	>>>>>>	a10//
+temp2	a2	>>>>>>	a20//
+temp2	a3	>>>>>>	a5//
+temp2	a4	>>>>>>	a15//
+temp2	a5	>>>>>>	a16//
+temp2	a6	>>>>>>	a1//
+temp2	a7	>>>>>>	a11//
+temp2	a8	>>>>>>	a21//
+temp2	a9	>>>>>>	a6//
+temp2	a10	>>>>>>	a7//
+temp2	a11	>>>>>>	a17//
+temp2	a12	>>>>>>	a2//
+temp2	a13	>>>>>>	a12//
+temp2	a14	>>>>>>	a22//
+temp2	a15	>>>>>>	a23//
+temp2	a16	>>>>>>	a8//
+temp2	a17	>>>>>>	a18//
+temp2	a18	>>>>>>	a3//
+temp2	a19	>>>>>>	a13/
+temp2	a20	>>>>>>	a14//
+temp2	a21	>>>>>>	a24//
+temp2	a22	>>>>>>	a9//
+temp2	a23	>>>>>>	a19
+temp2	a24	>>>>>>	a4
+
+  */                    
+//pi + chi
+
+    wire [7:0] tmp_chi_a0 = temp2_a0 ^  (~temp2_a10 & temp2_a20); // (~temp2_a1 &temp2_a2 );
+ 	wire [7:0] tmp_chi_a1 = temp2_a10 ^  (~temp2_a20 & temp2_a5);  //(~temp2_a2 &temp2_a3 );
+ 	wire [7:0] tmp_chi_a2 = temp2_a20 ^  (~temp2_a5  & temp2_a15); //(~temp2_a3 &temp2_a4 );
+ 	wire [7:0] tmp_chi_a3 = temp2_a5 ^  (~temp2_a15 & temp2_a16); //(~temp2_a4 &temp2_a5 );
+ 	wire [7:0] tmp_chi_a4 = temp2_a15 ^  (~temp2_a16 & temp2_a1);  //(~temp2_a5 &temp2_a6 );
+ 	wire [7:0] tmp_chi_a5 = temp2_a16 ^  (~temp2_a1  & temp2_a11); //(~temp2_a6 &temp2_a7 );
+ 	wire [7:0] tmp_chi_a6 = temp2_a1 ^  (~temp2_a11 & temp2_a21); //(~temp2_a7 &temp2_a8 );
+ 	wire [7:0] tmp_chi_a7 = temp2_a11 ^  (~temp2_a21 & temp2_a6);  //(~temp2_a8 &temp2_a9 );
+ 	wire [7:0] tmp_chi_a8 = temp2_a21 ^  (~temp2_a6  & temp2_a7);  //(~temp2_a9 &temp2_a10);
+ 	wire [7:0] tmp_chi_a9 = temp2_a6 ^  (~temp2_a7& & temp2_a17); //(~temp2_a10&temp2_a11);
+ 	wire [7:0] tmp_chi_a10 =temp2_a7 ^ (~temp2_a17 & temp2_a2);  //(~temp2_a11 & temp2_a12);
+ 	wire [7:0] tmp_chi_a11 =temp2_a17 ^ (~temp2_a2  & temp2_a12); 	//(~temp2_a12&temp2_a13);
+ 	wire [7:0] tmp_chi_a12 =temp2_a2 ^ (~temp2_a12 & temp2_a22);	//(~temp2_a13&temp2_a14);
+ 	wire [7:0] tmp_chi_a13 =temp2_a12 ^ (~temp2_a22 & temp2_a23);	//(~temp2_a14&temp2_a15);
+ 	wire [7:0] tmp_chi_a14 =temp2_a22 ^ (~temp2_a23 & temp2_a8); 	//(~temp2_a15&temp2_a16);
+ 	wire [7:0] tmp_chi_a15 =temp2_a23 ^ (~temp2_a8  & temp2_a18); 	//(~temp2_a16&temp2_a17);
+ 	wire [7:0] tmp_chi_a16 =temp2_a8 ^ (~temp2_a18 & temp2_a3); 	//(~temp2_a17&temp2_a18);
+ 	wire [7:0] tmp_chi_a17 =temp2_a18 ^ (~temp2_a3  & temp2_a13); 	//(~temp2_a18&temp2_a19);
+ 	wire [7:0] tmp_chi_a18 =temp2_a3 ^ (~temp2_a13 & temp2_a14);	//(~temp2_a19&temp2_a20);
+ 	wire [7:0] tmp_chi_a19 =temp2_a13 ^ (~temp2_a14 & temp2_a24);	//(~temp2_a20&temp2_a21);
+ 	wire [7:0] tmp_chi_a20 =temp2_a14 ^ (~temp2_a24 & temp2_a9); 	//(~temp2_a21&temp2_a22);
+ 	wire [7:0] tmp_chi_a21 =temp2_a24 ^ (~temp2_a9  & temp2_a19);	 //(~temp2_a22&temp2_a23);
+ 	wire [7:0] tmp_chi_a22 =temp2_a9 ^ (~temp2_a19 & temp2_a4); 	//(~temp2_a23&temp2_a24);
+ 	wire [7:0] tmp_chi_a23 =temp2_a19 ^ (~temp2_a4  & temp2_a14); 	//(~temp2_a24&temp2_a20);
+ 	wire [7:0] tmp_chi_a24 =temp2_a4 ^ (~temp2_a14 & temp2_a24);	//(~temp2_a20&temp2_a21);
+ 	
+//TIEprint((1),"pi + chi");          
+ //   TIEprint((1), "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\n",
+  //  tmp_chi_a0,tmp_chi_a1,tmp_chi_a2,tmp_chi_a3,tmp_chi_a4,tmp_chi_a5,tmp_chi_a6,tmp_chi_a7,tmp_chi_a8,tmp_chi_a9,tmp_chi_a10,tmp_chi_a11,tmp_chi_a12,tmp_chi_a13,tmp_chi_a14,tmp_chi_a15,tmp_chi_a16,tmp_chi_a17,tmp_chi_a18,tmp_chi_a19,tmp_chi_a20,tmp_chi_a21,tmp_chi_a22,tmp_chi_a23,tmp_chi_a24);
+ 
+
+//chi
+
+//iota + assigning result to A-states block
+	wire [4:0] round = roundnum;    
+	 	
+ 	assign A0 = {tmp_chi_a3 ^KC[round]  ,tmp_chi_a2 ^KC[round]  ,tmp_chi_a1 ^KC[round]   ,tmp_chi_a0^KC[round]}; 	
+ 	assign A1 = {tmp_chi_a7 ^KC[round]  ,tmp_chi_a6 ^KC[round]  ,tmp_chi_a5 ^KC[round]   ,tmp_chi_a4^KC[round]};
+    assign A2 = {tmp_chi_a11^KC[round]  ,tmp_chi_a10^KC[round]  ,tmp_chi_a9 ^KC[round]    ,tmp_chi_a8^KC[round]};
+    assign A3 = {tmp_chi_a15^KC[round]  ,tmp_chi_a14^KC[round]  ,tmp_chi_a13^KC[round]   ,tmp_chi_a12^KC[round]};
+    assign A4 = {tmp_chi_a19^KC[round]  ,tmp_chi_a18^KC[round]  ,tmp_chi_a17^KC[round]   ,tmp_chi_a16^KC[round]};
+    assign A5 = {tmp_chi_a23^KC[round]  ,tmp_chi_a22^KC[round]  ,tmp_chi_a21^KC[round]   ,tmp_chi_a20^KC[round]};
+    
+    
+    assign A6 =  {24'd0,tmp_chi_a24^KC[round]} ;
+ 	 	
+ 	 	
+ 	// TIEprint((1),"chi");          
+    //TIEprint((1), "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\n",
+		
+//tmp_chi_a0	^KC[roundnum] 	,
+//tmp_chi_a1	^KC[roundnum] 	,
+//tmp_chi_a2	^KC[roundnum] 	,
+//tmp_chi_a3	^KC[roundnum] 	,
+//tmp_chi_a4	^KC[roundnum] 	,
+//tmp_chi_a5	^KC[roundnum] 	,
+//tmp_chi_a6	^KC[roundnum] 	,
+//tmp_chi_a7	^KC[roundnum] 	,
+//tmp_chi_a8	^KC[roundnum] 	,
+//tmp_chi_a9	^KC[roundnum] 	,
+//tmp_chi_a10	^KC[roundnum] 	,
+//tmp_chi_a11	^KC[roundnum] 	,
+//tmp_chi_a12	^KC[roundnum] 	,
+//tmp_chi_a13	^KC[roundnum] 	,
+//tmp_chi_a14	^KC[roundnum] 	,
+//tmp_chi_a15	^KC[roundnum] 	,
+//tmp_chi_a16	^KC[roundnum] 	,
+//tmp_chi_a17	^KC[roundnum] 	,
+//tmp_chi_a18	^KC[roundnum] 	,
+//tmp_chi_a19	^KC[roundnum] 	,
+//tmp_chi_a20	^KC[roundnum] 	,
+//tmp_chi_a21	^KC[roundnum] 	,
+//tmp_chi_a22	^KC[roundnum] 	,
+//tmp_chi_a23	^KC[roundnum] 	,
+//tmp_chi_a24	^KC[roundnum]);
+ 
+ 	 	
+ 	 	
+ 	 	
+ 	 	
+ 	 	
+
+} 
+
+
+
+operation Giftprm{
+   			     inout AR S0,	     
+			     inout AR S1,	     
+			     inout AR S2,	     
+			     inout AR S3,
+				 inout AR W0,   //W0 = {W1,W0}			     
+			     inout AR W2,	//W2 = {W3,W2}   
+			     inout AR W4,	//W4 = {W5,W4}     
+			     inout AR W6,   //W6 = {W7,W6}			     
+				 in AR roundnum } {} {
+//SubCells 	
+		 wire [31:0] S1_temp  = S1 ^ S0 & S2;
+         wire [31:0] S0_temp  = S0 ^ S1 & S3;
+         wire [31:0] S2_temp  = S2 ^ S0 | S1;
+         wire [31:0] S3_temp  = S3 ^ S2;
+         
+         wire [31:0] S1_temp2 = S1_temp^ S3_temp;
+         wire [31:0] S0_temp2 = S3_temp ^ 32'hffffffff;
+         wire [31:0] S2_temp2 = S2_temp^ S0_temp & S1_temp;         
+         wire [31:0] S3_temp2 = S0_temp;    	
+         
+ //PermBits
+ 		 wire [31:0] S0_temp3 = rowperm(S0_temp2,0,3,2,1);
+		 wire [31:0] S1_temp3 = rowperm(S1_temp2,1,0,3,2);
+		 wire [31:0] S2_temp3 = rowperm(S2_temp2,2,1,0,3);
+		 wire [31:0] S3_temp3 = rowperm(S3_temp2,3,2,1,0);
+
+ //AddRoundKeyConst
+         wire [31:0] S2_temp4  = W2<<16 | W2>>16 ;//W2<<16 | W3 ;
+         wire [31:0] S1_temp4  = W6<<16 | W6>>16 ;//W6<<16 | W7 ;
+
+         assign S2 = S2_temp3^ S2_temp4;
+         assign S1 = S1_temp3 ^ S1_temp4;
+         
+         wire [5:0] round = roundnum;
+         
+         assign S3 = S3_temp3 ^ GIFT_RC[round] ^ 32'h80000000;
+         
+         assign S0 =  S0_temp3;		 
+//KeyStateUpdate
+
+		 
+		 //W0 = {W1,W0}
+		 //W2 = {W3,W2}
+		 //W4 = {W5,W4}
+		 //W6 = {W7,W6}
+		 
+		 wire [15:0] W7_temp=W4>>16; //W5; 
+		 wire [15:0] W6_temp=W4;
+		 wire [15:0] W5_temp=W2>>16; //W3;
+		 wire [15:0] W4_temp=W2;
+		 wire [15:0] W3_temp=W0>>16; //W1;
+		 wire [15:0] W2_temp=W0;
+		 
+		 wire [15:0] W6_input = W6;
+		 wire [15:0] W7_input = W6>>16;
+		 
+		 wire [15:0] W0_temp = (W6_input>>2) | (W6_input<<14); 
+		 wire [15:0] W1_temp = (W7_input>>12) | (W7_input<<4);
+		 
+		 assign W0 = {W1_temp,W0_temp};
+		 assign W2 = {W3_temp,W2_temp};
+		 assign W4 = {W5_temp,W4_temp};
+		 assign W6 = {W7_temp,W6_temp};
+		 				 
+}
+
+
+
+operation sparkle_opt{
+   			     inout AR S0,	     
+			     inout AR S1,	     
+			     inout AR S2,	     
+			     inout AR S3,
+				 inout AR S4,    	     
+			     inout AR S5,	 
+			     inout AR S6,	 
+			     inout AR S7,        
+				 in AR roundnum } {} {
+				 
+				 
+				 
+				 }
+
+				 
+				 //ascon  //#define ROTR32(x, n) (((x) >> (n)) | ((x) << (32 - (n))))
+function [31:0] rot32 ([31:0] a, [4:0] ofs) {
+    
+    wire [4:0] tmp_left =  (a<<(32-ofs[4:0]));
+    wire [4:0] tmp_right = (a>>ofs[4:0]);
+    assign rot32 = (tmp_right) | (tmp_left);
+}
+				 

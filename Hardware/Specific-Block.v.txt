@@ -1,0 +1,758 @@
+immediate_range IR32 0 31 1
+
+immediate_range IR4 0 3 1  //use for GIFT
+
+format flix_1 64 {flix64_slot0, flix64_slot1}
+format flix_2 64 {flix64_slot2}
+
+// load store
+slot_opcodes flix64_slot0 {xt_loadstore}
+slot_opcodes flix64_slot1 {xt_loadstore}
+// Standard instructions in slot0 & 1
+slot_opcodes flix64_slot0 {xt_move,xt_alu}
+slot_opcodes flix64_slot1 {xt_move,xt_alu}
+ 
+
+///  flix64_slot2
+ 
+slot_opcodes flix64_slot2 {ascon_linr}
+slot_opcodes flix64_slot2 {ascon_nonlinr}
+slot_opcodes flix64_slot2 {theta_T} 
+slot_opcodes flix64_slot2 {rho_T}
+slot_opcodes flix64_slot2 {chi_T} 
+slot_opcodes flix64_slot2 {PermBits} //GIFT
+slot_opcodes flix64_slot2 {SubCells} //GIFT 
+slot_opcodes flix64_slot2 {AddRoundKeyConst} //GIFT 
+slot_opcodes flix64_slot2 {KeyStateUpdate}//GIFT
+
+
+slot_opcodes flix64_slot2 {state_update_block}//Tinyjambu_B
+
+
+//==================================================
+//Elephant
+table KeccakRhoOffsets 3 25 {
+    0, 1, 6, 4, 3,
+	4, 4, 6, 7, 4,
+	3, 2, 3, 1, 7,
+	1, 5, 7, 5, 0,
+	2, 2, 5, 0, 6
+
+}
+
+table GIFT_RC 8 40 {
+    8'h01, 8'h03, 8'h07, 8'h0F, 8'h1F, 8'h3E, 8'h3D, 8'h3B, 8'h37, 8'h2F,
+    8'h1E, 8'h3C, 8'h39, 8'h33, 8'h27, 8'h0E, 8'h1D, 8'h3A, 8'h35, 8'h2B,
+    8'h16, 8'h2C, 8'h18, 8'h30, 8'h21, 8'h02, 8'h05, 8'h0B, 8'h17, 8'h2E,
+    8'h1C, 8'h38, 8'h31, 8'h23, 8'h06, 8'h0D, 8'h1B, 8'h36, 8'h2D, 8'h1A
+}
+//==================================================
+//ascon
+function [31:0] xornotand ([31:0] a, [31:0] b, [31:0] c) {
+    assign xornotand = a ^ (~b&c);
+}
+
+
+//ascon  //#define ROTR32(x, n) (((x) >> (n)) | ((x) << (32 - (n))))
+function [31:0] rot32 ([31:0] a, [4:0] ofs) {
+    
+    wire [4:0] tmp_left =  (a<<(32-ofs[4:0]));
+    wire [4:0] tmp_right = (a>>ofs[4:0]);
+    assign rot32 = (tmp_right) | (tmp_left);
+}
+
+ function [31:0] rotxor ([31:0] x, [31:0] a, [31:0] b, [4:0] imd1, [4:0] imd2){
+    
+    	wire [31:0] tmp_right =  (b>>imd2[4:0]);    	
+    	wire [31:0] tmp_left  =  (a<<imd1[4:0]);
+	    assign rotxor =  x ^tmp_right^tmp_left;
+}
+ 
+ 
+function [4:0] rol8 ([4:0] a, [4:0] offset) {
+    wire [4:0] tmp_right = (a)>>(8-offset[4:0]);
+ 	wire [4:0] tmp_left =  (a)<<(offset[4:0]);
+	assign rol8 =  tmp_right ^ tmp_left;
+}
+
+
+function [7:0] rol_rho ([7:0] a, [2:0] offset) {
+
+    wire [4:0] tmp_right = (a)>>(8-offset[2:0]);
+ 	wire [4:0] tmp_left =  (a)<<(offset[2:0]);
+ 	
+
+	assign rol_rho =  tmp_left ^ tmp_right ;
+}
+
+
+function [31:0] rowperm ([31:0] S_in,[1:0] B0_pos,[1:0] B1_pos,[1:0] B2_pos,[1:0] B3_pos){
+;for ( $i = 0 ; $i < 8 ; $i++){
+	
+		wire [31:0] T`$i`;
+		wire [31:0] Temp0`$i`;
+		wire [31:0] Temp1`$i`;
+		wire [31:0] Temp2`$i`;
+		wire [31:0] Temp3`$i`;
+		wire [17:0] s_right0`$i`=(4*`$i`+0);
+		wire [17:0] s_right1`$i`=(4*`$i`+1);
+		wire [17:0] s_right2`$i`=(4*`$i`+2);
+		wire [17:0] s_right3`$i`=(4*`$i`+3);
+		
+		assign Temp0`$i`  = (S_in>>(s_right0`$i`)&32'd1)<<(`$i`+8*B0_pos);		
+		assign Temp1`$i`  = (S_in>>(s_right1`$i`)&32'd1)<<(`$i`+8*B1_pos);		
+		assign Temp2`$i`  = (S_in>>(s_right2`$i`)&32'd1)<<(`$i`+8*B2_pos);		
+		assign Temp3`$i`  = (S_in>>(s_right3`$i`)&32'd1)<<(`$i`+8*B3_pos);		
+
+		assign T`$i` = Temp0`$i`| Temp1`$i` |Temp2`$i`|Temp3`$i`;
+		
+;}
+		assign rowperm =T0|T1|T2|T3|T4|T5|T6|T7;
+}
+
+
+//==================================================
+//ascon
+ operation ascon_linr {inout AR x0_e,inout AR x0_o,
+					   inout AR x1_e,inout AR x1_o,
+					   inout AR x2_e,inout AR x2_o,
+					   inout AR x3_e,inout AR x3_o,
+					   inout AR x4_e,inout AR x4_o
+					  }{} {
+				   
+				   
+	wire [31:0] x0e_temp = x0_e^ rot32(x0_o,4);
+    wire [31:0] x0o_temp = x0_o^ rot32(x0_e,5); 
+    wire [31:0] x1e_temp = x1_e^ rot32(x1_e,11);
+    wire [31:0] x1o_temp = x1_o^ rot32(x1_o,11);            
+    wire [31:0] x2e_temp = x2_e^ rot32(x2_o,2);
+    wire [31:0] x2o_temp = x2_o^ rot32(x2_e,3);    
+    wire [31:0] x3e_temp = x3_e^ rot32(x3_o,3);
+    wire [31:0] x3o_temp = x3_o^ rot32(x3_e,4);
+    wire [31:0] x4e_temp = x4_e^ rot32(x4_e,17);
+    wire [31:0] x4o_temp = x4_o^ rot32(x4_o,17);
+
+	
+    assign x0_e = x0e_temp ^ rot32(x0e_temp,10);
+    assign x0_o = x0o_temp^ rot32(x0e_temp,10);
+    
+    assign x1_e = x1e_temp^ rot32(x1o_temp,19);
+    assign x1_o = x1o_temp^ rot32(x0e_temp,20);
+    
+    assign x2_e = ~(x2e_temp ^ x2o_temp);
+    assign x2_o = ~(x2o_temp^ rot32(x0e_temp,1));
+    
+    assign x3_e = x3e_temp^ rot32(x3e_temp,5);
+    assign x3_o = x3o_temp^ rot32(x3o_temp,5);
+    
+    assign x4_e = x4e_temp^ rot32(x0e_temp,10);
+    assign x4_o = x4o_temp^ rot32(x0e_temp,10);
+    
+				   
+ 
+}
+
+//ascon
+operation ascon_nonlinr {inout AR x0_e,inout AR x0_o,
+					   inout AR x1_e,inout AR x1_o,
+					   inout AR x2_e,inout AR x2_o,
+					   inout AR x3_e,inout AR x3_o,
+					   inout AR x4_e,inout AR x4_o
+				   } {} {			   
+    wire [31:0] x0e_temp = x0_e ^ x4_e;
+    wire [31:0] x0o_temp = x0_o ^ x4_o;
+    
+    wire [31:0] x4e_temp = x4_e ^ x3_e;
+    wire [31:0] x4o_temp = x4_o ^ x3_o;
+        
+    wire [31:0] x2e_temp = x2_e ^ x1_e;
+    wire [31:0] x2o_temp = x2_o ^ x1_o;
+    
+    wire [31:0] x1e_temp = x1_e;
+    wire [31:0] x1o_temp = x1_o;
+    
+    wire [31:0] x3e_temp = x3_e;
+    wire [31:0] x3o_temp = x3_o;
+        
+    
+        
+    wire [31:0] x0e_new = xornotand (x0e_temp,x1e_temp,x2e_temp);//    x0.e = t0.e ^ (~t1.e & t2.e);\
+    wire [31:0] x0o_new = xornotand (x0o_temp,x1o_temp,x2o_temp); //x0.o = t0.o ^ (~t1.o & t2.o); \
+    wire [31:0] x2e_new = xornotand (x2e_temp,x3e_temp,x4e_temp); //x2.e = t2.e ^ (~t3.e & t4.e);\
+    wire [31:0] x2o_new = xornotand (x2o_temp,x3o_temp,x4o_temp); //x2.o = t2.o ^ (~t3.o & t4.o); \
+    wire [31:0] x4e_new = xornotand (x4e_temp,x0e_temp,x1e_temp); //x4.e = t4.e ^ (~t0.e & t1.e); \
+    wire [31:0] x4o_new = xornotand (x4o_temp,x0o_temp,x1o_temp); //x4.o = t4.o ^ (~t0.o & t1.o); \
+    
+    wire [31:0] x1e_new = xornotand (x1e_temp,x2e_temp,x3e_temp); //x1.e = t1.e ^ (~t2.e & t3.e); \
+    wire [31:0] x1o_new = xornotand (x1o_temp,x2o_temp,x3o_temp); //x1.o = t1.o ^ (~t2.o & t3.o); \
+    
+    wire [31:0] x3e_new = xornotand (x3e_temp,x4e_temp,x0e_temp); //x3.e = t3.e ^ (~t4.e & t0.e);\
+    wire [31:0] x3o_new = xornotand (x3o_temp,x4o_temp,x0o_temp); // //x3.o = t3.o ^ (~t4.o & t0.o); \
+    
+    
+    
+    assign x1_e =x1e_new ^ x0e_new;
+    assign x1_o =x1o_new ^ x0o_new; //x1.o ^= x0.o; \
+    assign x3_e =x3e_new ^ x2e_new; // x3.e ^= x2.e; \
+    assign x3_o =x3o_new ^ x2o_new; // x3.o ^= x2.o; \
+    assign x0_e =x0e_new ^ x4e_new;  //x0.e ^= x4.e; \
+    assign x0_o =x0o_new ^ x4o_new;  //x0.o ^= x4.o; \
+    
+    assign x2_e =x2e_new;
+    assign x2_o =x2o_new;
+    
+    assign x4_e =x4e_new;
+    assign x4_o =x4o_new;
+    
+	
+	
+	}
+
+/*
+operation DXORROTIMD {out AR a,in AR b,in AR c ,  in IR32 imd0,
+				   out AR d,in AR e,in AR f ,  in IR32 imd1
+				   } {} {
+		wire [4:0] sft0 =32-imd0[4:0];	
+		wire [4:0] sft1 =32-imd1[4:0];
+		assign a = b ^ ((c>>imd0[4:0]) | (c<<sft0));
+		assign d = e ^ ((f>>imd1[4:0]) | (c<<sft1));	
+}
+*/
+//ascon
+/*operation DXORNOTAND {out AR a,in AR b,in AR c ,in AR d,
+					  out AR e,in AR f,in AR g ,in AR h} {} {
+	assign a = b ^ ((~c) & d) ;
+	assign e = f ^ ((~g) & h) ;	
+}
+*/
+//ascon
+/*
+operation DXOR2 {inout AR a,in AR b,inout AR c ,in AR d,
+                 inout AR e,in AR f,inout AR g ,in AR h} {} {
+	assign a = a ^b;	
+	assign c = c ^d;
+	assign e = e ^f;	
+	assign g = g ^h;
+}
+*/
+//ascon
+operation XORimd4 {inout AR a, in IR32 imd1,inout AR b ,in IR32 imd2} {} {
+	assign a = a ^imd1[4:0];	
+	assign b = b ^imd2[4:0];
+}
+
+ 
+
+
+//Elephant theta
+operation theta_T {
+//A0 : a0 a1 a2 a3//
+   			     inout AR A0,
+//A1 : a4 a5 a6 a7//   			     
+			     inout AR A1,
+//A2 : a8 a9 a10 a11//			     
+			     inout AR A2,
+//A3 : a12 a13 a14 a15//			     
+			     inout AR A3,
+//A4 : a16 a17 a18 a19////			     
+			     inout AR A4,
+//A5 : a20 a21 a22 a23// //			     
+				 inout AR A5,
+//A6 : a24       
+				 inout AR A6 } {} {				 
+    wire [7:0] a0 = A0;
+ 	wire [7:0] a1 =(A0>>8'd8);
+ 	wire [7:0] a2 =(A0>>8'd16);
+ 	wire [7:0] a3 =(A0>>8'd24);
+ 	wire [7:0] a4 =A1;
+ 	wire [7:0] a5 =(A1>>8'd8);
+ 	wire [7:0] a6 =(A1>>8'd16);
+ 	wire [7:0] a7 =(A1>>8'd24);
+ 	wire [7:0] a8 =A2;
+ 	wire [7:0] a9 =(A2>>8'd8);
+ 	wire [7:0] a10 =(A2>>8'd16);
+ 	wire [7:0] a11 = (A2>>8'd24);
+ 	wire [7:0] a12 =A3;
+ 	wire [7:0] a13 =(A3>>8'd8);
+ 	wire [7:0] a14 =(A3>>8'd16);
+ 	wire [7:0] a15 =(A3>>8'd24);
+ 	wire [7:0] a16 =(A4);
+ 	wire [7:0] a17 =(A4>>8'd8);
+ 	wire [7:0] a18 =(A4>>8'd16);
+ 	wire [7:0] a19 =(A4>>8'd24);
+ 	wire [7:0] a20 =(A5);
+ 	wire [7:0] a21 =(A5>>8'd8);
+ 	wire [7:0] a22 =(A5>>8'd16);
+ 	wire [7:0] a23 =(A5>>8'd24); 
+ 	wire [7:0] a24 =(A6); 
+ 	
+ 	 	 			   
+ 	wire [7:0] c0 =a0^a5^a10^a15^a20;
+ 	wire [7:0] c1 =a1^a6^a11^a16^a21;
+ 	wire [7:0] c2 =a2^a7^a12^a17^a22;
+ 	wire [7:0] c3 =a3^a8^a13^a18^a23;
+ 	wire [7:0] c4 =a4^a9^a14^a19^a24;
+
+ 	wire [4:0] d0 =rol8(c1,1) ^ c4;
+ 	wire [4:0] d1 =rol8(c2,1) ^ c0;
+ 	wire [4:0] d2 =rol8(c3,1) ^ c1;
+ 	wire [4:0] d3 =rol8(c4,1) ^ c2;
+ 	wire [4:0] d4 =rol8(c0,1) ^ c3;
+ 	
+ 	
+ 	wire [7:0] temp_a0 = a0^d0; 
+ 	wire [7:0] temp_a1 = a1^d1;
+ 	wire [7:0] temp_a2 = a2^d2;
+ 	wire [7:0] temp_a3 = a3^d3;
+ 	wire [7:0] temp_a4 = a4^d4;
+ 	wire [7:0] temp_a5 = a5^d0; 
+ 	wire [7:0] temp_a6 = a6^d1; 
+ 	wire [7:0] temp_a7 = a7^d2; 
+ 	wire [7:0] temp_a8 = a8^d3; 
+ 	wire [7:0] temp_a9 = a9^d4; 
+ 	wire [7:0] temp_a10 =a10^d0;
+ 	wire [7:0] temp_a11 =a11^d1;
+ 	wire [7:0] temp_a12 =a12^d2;
+ 	wire [7:0] temp_a13 =a13^d3;
+ 	wire [7:0] temp_a14 =a14^d4;
+ 	wire [7:0] temp_a15 =a15^d0;
+ 	wire [7:0] temp_a16 =a16^d1;
+ 	wire [7:0] temp_a17 =a17^d2;
+ 	wire [7:0] temp_a18 =a18^d3;
+ 	wire [7:0] temp_a19 =a19^d4;
+ 	wire [7:0] temp_a20 =a20^d0;
+ 	wire [7:0] temp_a21 =a21^d1;
+ 	wire [7:0] temp_a22 =a22^d2;
+ 	wire [7:0] temp_a23 =a23^d3;
+ 	wire [7:0] temp_a24 =a24^d4;
+ 	           
+ 	           
+ 	 
+ 	 	
+ 	 	
+ 	 	
+ 	assign A0 = {temp_a3,temp_a2,temp_a1,temp_a0}; 	
+ 	assign A1 = {temp_a7,temp_a6,temp_a5,temp_a4};
+    assign A2 = {temp_a11,temp_a10,temp_a9,temp_a8};
+    assign A3 = {temp_a15,temp_a14,temp_a13,temp_a12};
+    assign A4 = {temp_a19,temp_a18,temp_a17,temp_a16};
+    assign A5 = {temp_a23,temp_a22,temp_a21,temp_a20};    
+    assign A6 =  {24'd0,temp_a24} ;
+ 	 	
+ 	 	
+ 	 	
+ 	 	
+ 	 	
+ 	 	
+ 	 	
+ 	 	
+}
+
+  //Elephant chi
+operation rho_T {
+//A0 : a0 a1 a2 a3//
+   			     inout AR A0,
+//A1 : a4 a5 a6 a7//   			     
+			     inout AR A1,
+//A2 : a8 a9 a10 a11//			     
+			     inout AR A2,
+//A3 : a12 a13 a14 a15//			     
+			     inout AR A3,
+//A4 : a16 a17 a18 a19////			     
+			     inout AR A4,
+//A5 : a20 a21 a22 a23// //			     
+				 inout AR A5,
+//A6 : a24       
+				 inout AR A6 } {} {				 
+//0,5,10,15,20
+//1,6,11,16,21
+//2,7,12,17,22
+//3,8,13,18,23
+//4,9,14,19,24
+ 	
+ 	wire [7:0] a0 =A0;
+ 	wire [7:0] a1 =(A0>>8'd8);
+ 	wire [7:0] a2 =(A0>>8'd16);
+ 	wire [7:0] a3 =(A0>>8'd24);
+ 	wire [7:0] a4 =A1;
+ 	wire [7:0] a5 =(A1>>8'd8);
+ 	wire [7:0] a6 =(A1>>8'd16);
+ 	wire [7:0] a7 =(A1>>8'd24);
+ 	wire [7:0] a8 =A2;
+ 	wire [7:0] a9 =(A2>>8'd8);
+ 	wire [7:0] a10 =(A2>>8'd16);
+ 	wire [7:0] a11 = (A2>>8'd24);
+ 	wire [7:0] a12 =A3;
+ 	wire [7:0] a13 =(A3>>8'd8);
+ 	wire [7:0] a14 =(A3>>8'd16);
+ 	wire [7:0] a15 =(A3>>8'd24);
+ 	wire [7:0] a16 =(A4);
+ 	wire [7:0] a17 =(A4>>8'd8);
+ 	wire [7:0] a18 =(A4>>8'd16);
+ 	wire [7:0] a19 =(A4>>8'd24);
+ 	wire [7:0] a20 =(A5);
+ 	wire [7:0] a21 =(A5>>8'd8);
+ 	wire [7:0] a22 =(A5>>8'd16);
+ 	wire [7:0] a23 =(A5>>8'd24); 
+ 	wire [7:0] a24 =(A6); 
+ 
+ 
+ 	
+ 	wire [7:0] temp_a0 = rol_rho(a0,KeccakRhoOffsets[0]);
+ 	wire [7:0] temp_a1 = rol_rho(a1,KeccakRhoOffsets[1]);
+ 	wire [7:0] temp_a2 = rol_rho(a2,KeccakRhoOffsets[2]);
+ 	wire [7:0] temp_a3 = rol_rho(a3,KeccakRhoOffsets[3]);
+ 	wire [7:0] temp_a4 = rol_rho(a4,KeccakRhoOffsets[4]);
+ 	wire [7:0] temp_a5 = rol_rho(a5,KeccakRhoOffsets[5]);
+ 	wire [7:0] temp_a6 = rol_rho(a6,KeccakRhoOffsets[6]);
+ 	wire [7:0] temp_a7 = rol_rho(a7,KeccakRhoOffsets[7]);
+ 	wire [7:0] temp_a8 = rol_rho(a8,KeccakRhoOffsets[8]);
+ 	wire [7:0] temp_a9 = rol_rho(a9,KeccakRhoOffsets[9]);
+ 	wire [7:0] temp_a10 =rol_rho(a10,KeccakRhoOffsets[10]);
+ 	wire [7:0] temp_a11 =rol_rho(a11,KeccakRhoOffsets[11]);
+ 	wire [7:0] temp_a12 =rol_rho(a12,KeccakRhoOffsets[12]);
+ 	wire [7:0] temp_a13 =rol_rho(a13,KeccakRhoOffsets[13]);
+ 	wire [7:0] temp_a14 =rol_rho(a14,KeccakRhoOffsets[14]);
+ 	wire [7:0] temp_a15 =rol_rho(a15,KeccakRhoOffsets[15]);
+ 	wire [7:0] temp_a16 =rol_rho(a16,KeccakRhoOffsets[16]);
+ 	wire [7:0] temp_a17 =rol_rho(a17,KeccakRhoOffsets[17]);
+ 	wire [7:0] temp_a18 =rol_rho(a18,KeccakRhoOffsets[18]);
+ 	wire [7:0] temp_a19 =rol_rho(a19,KeccakRhoOffsets[19]);
+ 	wire [7:0] temp_a20 =rol_rho(a20,KeccakRhoOffsets[20]);
+ 	wire [7:0] temp_a21 =rol_rho(a21,KeccakRhoOffsets[21]);
+ 	wire [7:0] temp_a22 =rol_rho(a22,KeccakRhoOffsets[22]);
+ 	wire [7:0] temp_a23 =rol_rho(a23,KeccakRhoOffsets[23]);
+ 	wire [7:0] temp_a24 =rol_rho(a24,KeccakRhoOffsets[24]);	
+ 	
+    //TIEprint((1==1), "%u,%u,%u,%u\n",temp_a0,temp_a1,temp_a2,temp_a3);
+ 	//TIEprint((1==1), "A0=%08x\n",A0);      
+    
+    assign A0 = {temp_a3,temp_a2,temp_a1,temp_a0};
+    assign A1 = {temp_a7,temp_a6,temp_a5,temp_a4};
+    assign A2 = {temp_a11,temp_a10,temp_a9,temp_a8};
+    assign A3 = {temp_a15,temp_a14,temp_a13,temp_a12};
+    assign A4 = {temp_a19,temp_a18,temp_a17,temp_a16};
+    assign A5 = {temp_a23,temp_a22,temp_a21,temp_a20};    
+    assign A6 =  {24'd0,temp_a24} ;
+ 	
+}
+ 
+  
+ //Elephant chi
+operation chi_T {
+//A0 : a0 a1 a2 a3//
+   			     inout AR A0,
+//A1 : a4 a5 a6 a7//   			     
+			     inout AR A1,
+//A2 : a8 a9 a10 a11//			     
+			     inout AR A2,
+//A3 : a12 a13 a14 a15//			     
+			     inout AR A3,
+//A4 : a16 a17 a18 a19////			     
+			     inout AR A4,
+//A5 : a20 a21 a22 a23// //			     
+				 inout AR A5,
+//A6 : a24       
+				 inout AR A6 } {} {				 
+    //A[index(x, y)]  = A[index(x, y)] ^ ((~A[index(x+1, y)]) & A[index(x+2, y)]);
+ 	
+ 	wire [7:0] a0 =A0;
+ 	wire [7:0] a1 =(A0>>8'd8);
+ 	wire [7:0] a2 =(A0>>8'd16);
+ 	wire [7:0] a3 =(A0>>8'd24);
+ 	wire [7:0] a4 =A1;
+ 	wire [7:0] a5 =(A1>>8'd8);
+ 	wire [7:0] a6 =(A1>>8'd16);
+ 	wire [7:0] a7 =(A1>>8'd24);
+ 	wire [7:0] a8 =(A2);
+ 	wire [7:0] a9 =  (A2>>8'd8);
+ 	wire [7:0] a10 =(A2>>8'd16);
+ 	wire [7:0] a11 = (A2>>8'd24);
+ 	wire [7:0] a12 = (A3);
+ 	wire [7:0] a13 =(A3>>8'd8);
+ 	wire [7:0] a14 = (A3>>8'd16);
+ 	wire [7:0] a15 =(A3>>8'd24);
+ 	wire [7:0] a16 =(A4);
+ 	wire [7:0] a17 =(A4>>8'd8);
+ 	wire [7:0] a18 =(A4>>8'd16);
+ 	wire [7:0] a19 =(A4>>8'd24);
+ 	wire [7:0] a20 =(A5);
+ 	wire [7:0] a21 =(A5>>8'd8);
+ 	wire [7:0] a22 =(A5>>8'd16);
+ 	wire [7:0] a23 =(A5>>8'd24); 
+ 	wire [7:0] a24 =(A6); 
+ 
+ 	//TIEprint((1), "%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u\n",
+    //a0,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11,a12,a13,a14,a15,a16,a17,a18,a19,a20,a21,a22,a23,a24);
+
+
+ 	
+ 	wire [7:0] temp_a0 = a0 ^  (~a1 &a2 );
+ 	wire [7:0] temp_a1 = a1 ^  (~a2 &a3 );
+ 	wire [7:0] temp_a2 = a2 ^  (~a3 &a4 );
+ 	wire [7:0] temp_a3 = a3 ^  (~a4 &a5 );
+ 	wire [7:0] temp_a4 = a4 ^  (~a5 &a6 );
+ 	wire [7:0] temp_a5 = a5 ^  (~a6 &a7 );
+ 	wire [7:0] temp_a6 = a6 ^  (~a7 &a8 );
+ 	wire [7:0] temp_a7 = a7 ^  (~a8 &a9 );
+ 	wire [7:0] temp_a8 = a8 ^  (~a9 &a10);
+ 	wire [7:0] temp_a9 = a9 ^  (~a10&a11);
+ 	wire [7:0] temp_a10 =a10 ^ (~a11&a12);
+ 	wire [7:0] temp_a11 =a11 ^ (~a12&a13);
+ 	wire [7:0] temp_a12 =a12 ^ (~a13&a14);
+ 	wire [7:0] temp_a13 =a13 ^ (~a14&a15);
+ 	wire [7:0] temp_a14 =a14 ^ (~a15&a16);
+ 	wire [7:0] temp_a15 =a15 ^ (~a16&a17);
+ 	wire [7:0] temp_a16 =a16 ^ (~a17&a18);
+ 	wire [7:0] temp_a17 =a17 ^ (~a18&a19);
+ 	wire [7:0] temp_a18 =a18 ^ (~a19&a20);
+ 	wire [7:0] temp_a19 =a19 ^ (~a20&a21);
+ 	wire [7:0] temp_a20 =a20 ^ (~a21&a22);
+ 	wire [7:0] temp_a21 =a21 ^ (~a22&a23);
+ 	wire [7:0] temp_a22 =a22 ^ (~a23&a24);
+ 	wire [7:0] temp_a23 =a23 ^ (~a24&a20);
+ 	wire [7:0] temp_a24 =a24 ^ (~a20&a21);
+ 	
+ 		//A0 : a0 a1 a2 a3//
+		//A1 : a4 a5 a6 a7//   			     
+		//A2 : a8 a9 a10 a11//			     		     
+		//A3 : a12 a13 a14 a15//			     
+		//A4 : a16 a17 a18 a19////			     
+		//A5 : a20 a21 a22 a23// //			     
+		//A6 : a24
+    
+    assign A0 = {temp_a3,temp_a2,temp_a1,temp_a0};    
+ 	assign A1 = {temp_a7,temp_a6,temp_a5,temp_a4};
+    assign A2 = {temp_a11,temp_a10,temp_a9,temp_a8};
+    assign A3 = {temp_a15,temp_a14,temp_a13,temp_a12};
+    assign A4 = {temp_a19,temp_a18,temp_a17,temp_a16};
+    assign A5 = {temp_a23,temp_a22,temp_a21,temp_a20};    
+    assign A6 =  {24'd0,temp_a24} ;
+/*    assign A0 = {temp_a0,temp_a1,temp_a2,temp_a3};
+    assign A1 = {temp_a4,temp_a5,temp_a6,temp_a7};
+    assign A2 = {temp_a8,temp_a9,temp_a10,temp_a11};
+    assign A3 = {temp_a12,temp_a13,temp_a14,temp_a15};
+    assign A4 = {temp_a16,temp_a17,temp_a18,temp_a19};
+    assign A5 = {temp_a20,temp_a21,temp_a22,temp_a23};
+  */  
+
+ 	 	
+}
+ 
+ 
+ //GIFT-COFB
+operation PermBits {inout AR S0,inout AR S1,inout AR S2,inout AR S3} {} {	
+				
+		 assign S0 = rowperm(S0,0,3,2,1);
+		 assign S1 = rowperm(S1,1,0,3,2);
+		 assign S2 = rowperm(S2,2,1,0,3);
+		 assign S3 = rowperm(S3,3,2,1,0);
+ }
+ 
+//GIFT-COFB
+operation  SubCells {inout AR S0,inout AR S1,inout AR S2,inout AR S3} {} {	
+		 wire [31:0] S1_temp  = S1 ^ S0 & S2;
+         wire [31:0] S0_temp  = S0 ^ S1 & S3;
+         wire [31:0] S2_temp  = S2 ^ S0 | S1;
+         wire [31:0] S3_temp  = S3 ^ S2;
+         
+         assign S1 = S1_temp^ S3_temp;
+         assign S0 = S3_temp ^ 32'hffffffff;
+         assign S2 = S2_temp^ S0_temp & S1_temp;
+         
+         assign S3 = S0_temp; 
+ }
+ 
+//GIFT-COFB
+operation  AddRoundKeyConst {inout AR S1,inout AR S2,inout AR S3,in AR W2,in AR W3,in AR W6,in AR W7,in AR round} {} {	
+		 
+		 
+         wire [31:0] S2_temp  = W2<<16 | W3 ;
+         wire [31:0] S1_temp  = W6<<16 | W7 ;
+
+         assign S2 = S2^ S2_temp;
+         assign S1 = S1 ^ S1_temp;
+         
+         
+         wire [5:0] r = round;  //to avoind warning         
+         assign S3 = S3 ^ GIFT_RC[r] ^ 32'h80000000;
+          
+ }
+
+ //GIFT-COFB
+operation  KeyStateUpdate {inout AR W0,inout AR W1,
+						   inout AR W2,inout AR W3,
+						   inout AR W4,inout AR W5,
+						   inout AR W6,inout AR W7
+						   } {} {	
+		 
+		 assign W7=W5; 
+		 assign W6=W4;
+		 assign W5=W3;
+		 assign W4=W2;
+		 assign W3=W1;
+		 assign W2=W0;
+		 assign W0 = (W6>>2) | (W6<<14); 
+		 assign W1 = (W7>>12) | (W7<<4);
+		 
+		 
+                   
+ }
+ 
+ 
+ //Grain
+ 
+  operation  LFSTcalc {inout AR S0,
+ 					  inout AR S1,
+ 					  inout AR S2,
+ 					  inout AR S3,
+ 					  in AR X
+ 					  } {} {
+		 
+		
+		wire [31:0] X_temp1 = X ^ S0; 
+		wire [31:0] X_temp2 =  rotxor(X_temp1,S0,S1,7,25);
+		wire [31:0] X_temp3 =  rotxor(X_temp2,S1,S2,6,26);
+		wire [31:0] X_temp4 =  rotxor(X_temp3,S2,S3,6,26);
+		wire [31:0] X_temp5 =  rotxor(X_temp4,S2,S3,17,15);
+		
+		assign S0 = S1;
+		assign S1 = S2;
+		assign S2 = S3;
+		assign S3 = X_temp5;
+
+ }
+ 
+   operation  NFSRcalc {inout AR S0,
+ 					  inout AR S1,
+ 					  inout AR S2,
+ 					  inout AR S3,
+ 					  in AR X2
+ 					  } {} {
+		 
+		wire [31:0] ZERO  =32'h0;
+		wire [31:0] X2_temp1  = rotxor(X2,S0,S1,26,6);
+		wire [31:0] X2_temp2 =  rotxor(X2_temp1,S1,S2,7,25);
+		wire [31:0] X2_temp3 =  rotxor(X2_temp2,S2,S3,6,26);
+		
+				
+		wire [31:0] X2_temp4 =  rotxor(X2_temp3,S0,S1,3,29)
+							    & rotxor(ZERO,S2,S3,1,31);
+							    
+		wire [31:0] X2_temp5 =  rotxor(X2_temp4,S0,S1,11,21)
+							    & rotxor(ZERO,S0,S1,13,19);
+		
+		wire [31:0] X2_temp6 =  rotxor(X2_temp5,S0,S1,17,15)
+							    & rotxor(ZERO,S0,S1,18,14);
+		
+		
+		
+		
+				
+		wire [31:0] X2_temp7 =  rotxor(X2_temp6,S0,S1,27,5)
+							    & rotxor(ZERO,S1,S2,27,5);
+							    
+		wire [31:0] X2_temp8 =  rotxor(X2_temp7,S1,S2,8,24)
+							    & rotxor(ZERO,S1,S2,16,16);
+		
+		wire [31:0] X2_temp9 =  rotxor(X2_temp8,S1,S1,29,3)
+							    & rotxor(ZERO,S2,S3,1,31);
+		
+		
+		wire [31:0] X2_temp10 =  rotxor(X2_temp9,S2,S3,4,28)
+							    & rotxor(ZERO,S1,S2,20,12);
+							    
+		wire [31:0] X2_temp11 =  rotxor(X2_temp10,S0,S1,24,8)
+							    & rotxor(ZERO,S0,S1,25,7);
+		
+		wire [31:0] X2_temp12 =  rotxor(X2_temp11,S2,S3,14,18)
+							    & rotxor(ZERO,S2,S3,18,14);
+		wire [31:0] X2_temp13 =  rotxor(X2_temp12,S2,S3,28,4)
+							    & rotxor(ZERO,S2,S3,29,3)
+							    & rotxor(ZERO,S2,S3,31,1);
+		
+		
+		
+		
+		
+		assign S0 = S1;
+		assign S1 = S2;
+		assign S2 = S3;
+		assign S3 = X2_temp13;
+
+ }
+ 
+
+ 
+ 
+ 
+ //photon
+ /*
+operation ReorderState  {inout AR ROW0,inout AR ROW1,
+						 inout AR ROW2,inout AR ROW3,
+						 inout AR ROW4,inout AR ROW5,
+						  inout AR ROW6,inout AR ROW7,
+						   inout AR temp0,inout AR temp1
+						   } {} {	
+		 
+		 assign ROW0=reorderWord(ROW0,temp0);  
+		 assign ROW1=reorderWord(ROW1,temp1);
+		 assign ROW2=reorderWord(ROW2,temp0);
+		 assign ROW3=reorderWord(ROW3,temp1);
+		 assign ROW4=reorderWord(ROW4,temp0);
+		 assign ROW5=reorderWord(ROW5,temp1);
+		 assign ROW6=reorderWord(ROW6,temp0);
+		 assign ROW7=reorderWord(ROW7,temp1);
+		 
+                   
+ }
+ 
+ 
+ function [31:0] reorderWord ([31:0] x ,[31:0] t){
+ 
+ wire [31:0] t_1 = (x ^ (x >> 2)) & 0x0C0C0C0CU; 
+ wire [31:0] x1 = x ^ t_1 ^ (t_1 << 2); \
+ wire [31:0]     t = (x ^ (x >> 4U)) & 0x00F000F0U;
+      wire [31:0]  x = x ^ t ^ (t << 4U); \
+     wire [31:0]  t = (x ^ (x >> 8U)) & 0x0000FF00U; 
+     wire [31:0]  x = x ^ t ^ (t << 8U); \
+     wire [31:0]  t = (x ^ (x >> 1U)) & 0x22222222U; 
+     wire [31:0]  x = x ^ t ^ (t << 1U); \
+     wire [31:0]  t = (x ^ (x >> 2U)) & 0x0C0C0C0CU; 
+     wire [31:0]  x = x ^ t ^ (t << 2U); \
+     t = (x ^ (x >> 4U)) & 0x00F000F0U; 
+     wire [31:0]  x = x ^ t ^ (t << 4U); \
+    
+     
+ }
+ */
+ 
+ 
+ //Tinyjambu_B
+ operation  state_update_block {inout AR S0,
+ 						  in AR S1,
+ 						  in AR S2,
+ 						  in AR S3,
+ 						  in AR KEY
+ 					  } {} {
+		 
+		
+		wire [31:0] t1 =  rotor(S1,S2,15,27);
+		wire [31:0] t2 =  rotor(S2,S3,6,26);
+		wire [31:0] t3 =  rotor(S2,13,21,11);
+		wire [31:0] t4 =  rotor(S2,S3,27,5);
+		
+		assign S0 = S0 ^( t1 ^ (~(t2 & t3)) ^ t4 ^ KEY); 
+		
+		
+ 
+ }
+  //Tinyjambu_B
+ function [31:0] rotor ([31:0] a,[31:0] b, [4:0] ofs1, [4:0] ofs2) {
+    
+    wire [4:0] tmp_left =  (b<<ofs2[4:0]);
+    wire [4:0] tmp_right = (a>>ofs1[4:0]);
+    assign rotor = (tmp_right) | (tmp_left);
+}
+
+ 
